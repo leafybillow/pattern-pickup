@@ -12,11 +12,12 @@ void GetAsymmetryByBlockFromCut(Int_t slug){
   GetAsymmetryByBlockFromCut(slug,0); // neutral
   GetAsymmetryByBlockFromCut(slug,-1); // negative pattern polarity
   GetAsymmetryByBlockFromCut(slug,1); // positive pattern polarity
+  GetAsymmetryByBlockFromCut(slug,2); // normal
 }
 void GetAsymmetryByBlockFromCut(Int_t slug, Int_t user_switch){
   TString qwrootfile_path = "$QW_ROOTFILES/";
-  TString postpan_path = " /lustre/expphy/volatile/halla/parity/postpan_respin/";
-
+  // TString postpan_path = " /lustre/expphy/volatile/halla/parity/postpan_respin/";
+  TString postpan_path = "/lustre/expphy/volatile/halla/parity/LagrangeOutput/rootfiles/";
   TString list_name = Form("./prex-runlist/simple_list/slug%d.list",slug);
   FILE* prex_runlist = fopen(list_name.Data(),"r");
   if(prex_runlist==NULL)
@@ -26,7 +27,7 @@ void GetAsymmetryByBlockFromCut(Int_t slug, Int_t user_switch){
     output_suffix = "pos";
   if(user_switch==-1)
     output_suffix = "neg";
-  if(user_switch==1)
+  if(user_switch==0)
     output_suffix = "neutral";
 
   TString output_filename = Form("./rootfiles/slug%d_by_block_%s.root",
@@ -58,22 +59,20 @@ void GetAsymmetryByBlockFromCut(Int_t slug, Int_t user_switch){
     fscanf(prex_runlist,"%d\n",&run_number);
     cout << run_number << endl;
     TFile *input = TFile::Open(qwrootfile_path+Form("prexPrompt_pass1_%d.000.root",run_number));
-    TFile *redfile;
-    if(slug<=3)
-      redfile = TFile::Open(postpan_path+Form("prexPrompt_%d_000_regress_postpan.root",run_number));
-    else
-      redfile = TFile::Open(postpan_path+Form("prexPrompt_%d_000_regress_comboBPM.root",run_number));
+    TFile *redfile=TFile::Open(postpan_path+Form("prexPrompt_regress_%d.000.root",run_number));
     
-    if(input==NULL)
+    if(input==NULL || redfile==NULL)
       continue;
     TTree *mul_tree = (TTree*)input->Get("mul");
     TTree *mulc_tree = (TTree*)input->Get("mulc");
     TTree *mulc_dit_tree = (TTree*)input->Get("mulc_dit");
     TTree *mulc_dit_combo_tree = (TTree*)input->Get("mulc_dit_combo");
-    TTree *reg_tree = (TTree*)redfile->Get("reg"); // needed for minirun counter
+    TTree *regmul_tree = (TTree*)redfile->Get("mul"); // needed for minirun counter
+    TTree *reg_tree = (TTree*)redfile->Get("reg"); 
     mul_tree->AddFriend(mulc_tree);
     mul_tree->AddFriend(mulc_dit_tree);
     mul_tree->AddFriend(mulc_dit_combo_tree);
+    mul_tree->AddFriend(regmul_tree);
     mul_tree->AddFriend(reg_tree);
     // ==== Set Up Alias for new combination 
     vector<TString> user_define={"battery1l","battery2l","battery1r","battery2r",
@@ -279,7 +278,8 @@ void GetAsymmetryByBlockFromCut(Int_t slug, Int_t user_switch){
     TH1D *htemp;
     TString mini_cut;
     for(int imini=0;imini<nMini;imini++){
-      mini_cut = Form("&& minirun==%d",imini);
+      // mini_cut = Form("&& minirun==%d",imini);
+      mini_cut = Form("&& mini==%d",imini);
       for(int idev=0;idev<ndev;idev++){
 	device_name = device_list[idev];
 
@@ -298,6 +298,18 @@ void GetAsymmetryByBlockFromCut(Int_t slug, Int_t user_switch){
 	    fStat_mini[4*idev+iblk] = fStat_zero;
 	  cout << " -- Warning: " << device_name << " is not found " <<endl;
 	  continue;
+	}
+	
+	if(user_switch==2){
+	  for(int iblk=0;iblk<4;iblk++){
+	    mul_tree->Draw(device_name+block_format[iblk],
+			   "ok_cut"+mini_cut,"goff");
+	    htemp  = (TH1D*)gDirectory->FindObject("htemp");
+	    htemp->SetName(Form("htemp%d",counts++));
+	    fStat_mini[4*idev+iblk].mean = htemp->GetMean();
+	    fStat_mini[4*idev+iblk].error = htemp->GetMeanError();
+	    fStat_mini[4*idev+iblk].rms = htemp->GetRMS();
+	  }
 	}
 	
 	if(user_switch==1){

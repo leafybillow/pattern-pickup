@@ -298,7 +298,7 @@ void GetAsymmetryByBlockFromCut_new2(Int_t slug){
 	for(int iblk=0;iblk<4;iblk++){
 	  // Normal
 	  mul_tree->Draw(device_name+block_format[iblk],
-			 "ok_cut && actual_pattern_polarity==1"+mini_cut,"goff");
+			 "ok_cut"+mini_cut,"goff");
 	  htemp  = (TH1D*)gDirectory->FindObject("htemp");
 	  htemp->SetName(Form("htemp%d",counts++));
 	  fStat_mini[4*idev+iblk].mean = htemp->GetMean();
